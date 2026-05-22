@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import './Pos.css' // Importamos el nuevo diseño
 
 export default function Pos() {
   const [mediosPago, setMediosPago] = useState([])
@@ -9,23 +10,31 @@ export default function Pos() {
   const [tipo, setTipo] = useState('Gasto')
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  
   const [medioId, setMedioId] = useState('')
   const [categoriaId, setCategoriaId] = useState('')
   const [subcategoriaId, setSubcategoriaId] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Estados para Nuevos Medios
   const [esNuevoMedio, setEsNuevoMedio] = useState(false)
   const [nuevoMedioNombre, setNuevoMedioNombre] = useState('')
   const [nuevoMedioTipo, setNuevoMedioTipo] = useState('Debito')
   
+  // NUEVO: Estados para Nuevas Categorías y Subcategorías
+  const [esNuevaCategoria, setEsNuevaCategoria] = useState(false)
+  const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState('')
+  const [esNuevaSubcategoria, setEsNuevaSubcategoria] = useState(false)
+  const [nuevaSubcategoriaNombre, setNuevaSubcategoriaNombre] = useState('')
+
   const [cuotas, setCuotas] = useState(1)
   const [interes, setInteres] = useState('')
 
-  // Estados para la UF y la Mantención Editable
   const [ufValor, setUfValor] = useState(null)
-  const [montoMantencion, setMontoMantencion] = useState('') // Guardará el valor editable
+  const [montoMantencion, setMontoMantencion] = useState('')
 
+  // Cargar datos al iniciar
   useEffect(() => {
     const cargarDatosMaestros = async () => {
       const { data: medios } = await supabase.from('medios_pago').select('*')
@@ -47,7 +56,6 @@ export default function Pos() {
         if (data && data.serie && data.serie.length > 0) {
           const ufHoy = data.serie[0].valor;
           setUfValor(ufHoy)
-          // Sugerimos un valor inicial aproximado (basado en ~0.12 UF)
           setMontoMantencion(Math.round(ufHoy * 0.12))
         }
       } catch (error) {
@@ -59,268 +67,287 @@ export default function Pos() {
     cargarUF()
   }, [])
 
+  // Filtros dinámicos de Categorías
   const categoriasFiltradas = categorias.filter(c => c.tipo_movimiento === tipo)
   
   useEffect(() => {
-    if (categoriasFiltradas.length > 0) setCategoriaId(categoriasFiltradas[0].id)
-    else setCategoriaId('')
-  }, [tipo, categorias])
+    if (categoriasFiltradas.length > 0 && !esNuevaCategoria) {
+      setCategoriaId(categoriasFiltradas[0].id)
+    } else if (!esNuevaCategoria) {
+      setCategoriaId('')
+    }
+  }, [tipo, categorias, esNuevaCategoria])
 
   const subcatsFiltradas = subcategorias.filter(s => s.categoria_id == categoriaId)
 
   useEffect(() => {
-    if (subcatsFiltradas.length > 0) setSubcategoriaId(subcatsFiltradas[0].id)
-    else setSubcategoriaId('')
-  }, [categoriaId, subcategorias])
+    if (subcatsFiltradas.length > 0 && !esNuevaSubcategoria) {
+      setSubcategoriaId(subcatsFiltradas[0].id)
+    } else if (!esNuevaSubcategoria) {
+      setSubcategoriaId('')
+    }
+  }, [categoriaId, subcategorias, esNuevaSubcategoria])
 
+  // Handlers para selects dinámicos
   const handleMedioPagoChange = (e) => {
     const valor = e.target.value;
     if (valor === 'nuevo') {
-      setEsNuevoMedio(true);
-      setMedioId('nuevo');
-      setCuotas(1);
-      setInteres('');
+      setEsNuevoMedio(true); setMedioId('nuevo'); setCuotas(1); setInteres('');
     } else {
-      setEsNuevoMedio(false);
-      setMedioId(valor);
-      setCuotas(1);
-      setInteres('');
+      setEsNuevoMedio(false); setMedioId(valor); setCuotas(1); setInteres('');
+    }
+  }
+
+  const handleCategoriaChange = (e) => {
+    const valor = e.target.value;
+    if (valor === 'nueva') {
+      setEsNuevaCategoria(true);
+      setCategoriaId('nueva');
+      // Si crea una categoría nueva, obligamos a crear una subcategoría nueva
+      setEsNuevaSubcategoria(true);
+      setSubcategoriaId('nueva');
+    } else {
+      setEsNuevaCategoria(false);
+      setCategoriaId(valor);
+      setEsNuevaSubcategoria(false);
+    }
+  }
+
+  const handleSubcategoriaChange = (e) => {
+    const valor = e.target.value;
+    if (valor === 'nueva') {
+      setEsNuevaSubcategoria(true); setSubcategoriaId('nueva');
+    } else {
+      setEsNuevaSubcategoria(false); setSubcategoriaId(valor);
     }
   }
 
   const medioSeleccionado = mediosPago.find(m => m.id == medioId)
   const esCredito = (esNuevoMedio && nuevoMedioTipo === 'Credito') || (medioSeleccionado?.tipo === 'Credito')
 
+  // Mantención rápida
   const registrarMantencionRapida = async () => {
     if (!montoMantencion) return;
-    
     const medioTC = mediosPago.find(m => m.nombre.includes('Estudiante') || m.tipo === 'Credito')
     const catFinanciera = categorias.find(c => c.nombre.includes('Financieros'))
     const subcatMantencion = subcategorias.find(s => s.nombre.includes('Mantención') && s.categoria_id === catFinanciera?.id)
 
     if (!medioTC || !catFinanciera || !subcatMantencion) {
-      alert("Error: Asegúrate de tener creadas la categoría 'Gastos Financieros' y tu Tarjeta de Crédito.")
+      alert("Faltan datos maestros para registrar la mantención automática.")
       return;
     }
 
     setLoading(true)
-
-    const transaccionMantencion = {
+    const { error } = await supabase.from('transacciones').insert([{
       tipo_movimiento: 'Gasto',
-      monto: parseFloat(montoMantencion), // Usamos el monto que tú dejaste en la cajita
+      monto: parseFloat(montoMantencion),
       fecha_transaccion: new Date().toISOString().split('T')[0],
       medio_pago_id: medioTC.id,
       subcategoria_id: subcatMantencion.id,
-      descripcion: `Mantención TC Mensual (UF del día: $${ufValor})`,
+      descripcion: `Mantención TC Mensual (UF: $${ufValor})`,
       es_cuota: false
-    }
+    }])
 
-    const { error } = await supabase.from('transacciones').insert([transaccionMantencion])
-
-    if (error) {
-      alert("Error al registrar mantención: " + error.message)
-    } else {
-      alert("¡Mantención registrada con éxito al peso exacto! 🏦")
-    }
+    if (error) alert("Error: " + error.message)
+    else alert("¡Mantención registrada con éxito! 🏦")
     setLoading(false)
   }
 
+  // Guardado principal
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
 
-    let finalMedioId = medioId;
+    try {
+      let finalMedioId = medioId;
+      let finalCategoriaId = categoriaId;
+      let finalSubcategoriaId = subcategoriaId;
 
-    if (esNuevoMedio) {
-      const { data: nuevoMedioData, error: errorMedio } = await supabase
-        .from('medios_pago')
-        .insert([{ nombre: nuevoMedioNombre, tipo: nuevoMedioTipo }])
-        .select()
-
-      if (errorMedio) {
-        alert("Error al crear el medio de pago: " + errorMedio.message)
-        setLoading(false)
-        return
+      // 1. Insertar Medio de Pago nuevo
+      if (esNuevoMedio) {
+        const { data: newMedio, error: errMedio } = await supabase.from('medios_pago')
+          .insert([{ nombre: nuevoMedioNombre, tipo: nuevoMedioTipo }]).select()
+        if (errMedio) throw errMedio;
+        finalMedioId = newMedio[0].id;
+        setMediosPago([...mediosPago, newMedio[0]])
+        setEsNuevoMedio(false)
       }
-      finalMedioId = nuevoMedioData[0].id;
-      setMediosPago([...mediosPago, nuevoMedioData[0]])
-      setEsNuevoMedio(false)
-      setMedioId(finalMedioId)
-      setNuevoMedioNombre('')
-    }
 
-    let transaccionesAInsertar = [];
-    const montoBase = parseFloat(monto) || 0;
-    const montoInteres = parseFloat(interes) || 0;
-    const montoTotalReal = montoBase + montoInteres;
+      // 2. Insertar Categoría nueva
+      if (esNuevaCategoria) {
+        const { data: newCat, error: errCat } = await supabase.from('categorias')
+          .insert([{ nombre: nuevaCategoriaNombre, tipo_movimiento: tipo }]).select()
+        if (errCat) throw errCat;
+        finalCategoriaId = newCat[0].id;
+        setCategorias([...categorias, newCat[0]])
+        setEsNuevaCategoria(false)
+      }
 
-    if (esCredito && cuotas > 1) {
-      const montoCuota = montoTotalReal / cuotas;
-      const compraPadreId = crypto.randomUUID(); 
-      const fechaCompra = new Date(fecha + 'T00:00:00');
-      const diaCompra = fechaCompra.getDate();
-      
-      const saltarMeses = diaCompra >= 22 ? 2 : 1;
-      const mesInicial = fechaCompra.getMonth() + saltarMeses;
+      // 3. Insertar Subcategoría nueva
+      if (esNuevaSubcategoria) {
+        const { data: newSubcat, error: errSubcat } = await supabase.from('subcategorias')
+          .insert([{ nombre: nuevaSubcategoriaNombre, categoria_id: finalCategoriaId }]).select()
+        if (errSubcat) throw errSubcat;
+        finalSubcategoriaId = newSubcat[0].id;
+        setSubcategorias([...subcategorias, newSubcat[0]])
+        setEsNuevaSubcategoria(false)
+      }
 
-      for (let i = 0; i < cuotas; i++) {
-        const fechaPago = new Date(fechaCompra.getFullYear(), mesInicial + i, 5);
-        
+      // 4. Insertar Transacción
+      let transaccionesAInsertar = [];
+      const montoBase = parseFloat(monto) || 0;
+      const montoInteres = parseFloat(interes) || 0;
+      const montoTotalReal = montoBase + montoInteres;
+
+      if (esCredito && cuotas > 1) {
+        const montoCuota = montoTotalReal / cuotas;
+        const compraPadreId = crypto.randomUUID(); 
+        const fechaCompra = new Date(fecha + 'T00:00:00');
+        const saltarMeses = fechaCompra.getDate() >= 22 ? 2 : 1;
+        const mesInicial = fechaCompra.getMonth() + saltarMeses;
+
+        for (let i = 0; i < cuotas; i++) {
+          const fechaPago = new Date(fechaCompra.getFullYear(), mesInicial + i, 5);
+          transaccionesAInsertar.push({
+            tipo_movimiento: tipo, monto: montoCuota, fecha_transaccion: fechaPago.toISOString().split('T')[0],
+            medio_pago_id: finalMedioId, subcategoria_id: finalSubcategoriaId || null,
+            descripcion: `${descripcion} (Cuota ${i+1}/${cuotas})`, es_cuota: true, numero_cuota: i + 1,
+            total_cuotas: cuotas, id_compra_padre: compraPadreId
+          });
+        }
+      } else {
         transaccionesAInsertar.push({
-          tipo_movimiento: tipo,
-          monto: montoCuota,
-          fecha_transaccion: fechaPago.toISOString().split('T')[0],
-          medio_pago_id: finalMedioId,
-          subcategoria_id: subcategoriaId || null,
-          descripcion: `${descripcion} (Cuota ${i+1}/${cuotas})`,
-          es_cuota: true,
-          numero_cuota: i + 1,
-          total_cuotas: cuotas,
-          id_compra_padre: compraPadreId
+          tipo_movimiento: tipo, monto: montoTotalReal, fecha_transaccion: fecha,
+          medio_pago_id: finalMedioId, subcategoria_id: finalSubcategoriaId || null,
+          descripcion: descripcion, es_cuota: false
         });
       }
-    } else {
-      transaccionesAInsertar.push({
-        tipo_movimiento: tipo,
-        monto: montoTotalReal, 
-        fecha_transaccion: fecha,
-        medio_pago_id: finalMedioId,
-        subcategoria_id: subcategoriaId || null,
-        descripcion: descripcion,
-        es_cuota: false
-      });
-    }
 
-    const { error } = await supabase.from('transacciones').insert(transaccionesAInsertar)
+      const { error: errTrans } = await supabase.from('transacciones').insert(transaccionesAInsertar)
+      if (errTrans) throw errTrans;
 
-    if (error) {
+      alert("¡Transacción registrada con éxito! 🚀")
+      setMonto(''); setDescripcion(''); setCuotas(1); setInteres('');
+    } catch (error) {
       alert("Error al registrar: " + error.message)
-    } else {
-      alert("¡Transacción guardada con éxito! 🚀")
-      setMonto('')
-      setDescripcion('')
-      setCuotas(1)
-      setInteres('')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px', color: '#333' }}>
+    <div className="pos-wrapper">
       
-      {/* BANNER INTELIGENTE EDITABLE */}
       {ufValor && (
-        <div style={{ padding: '15px', backgroundColor: '#fff3cd', borderRadius: '5px', border: '1px solid #ffeeba', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '14px', color: '#856404' }}>
+        <div className="banner-uf">
+          <div style={{ marginBottom: '8px' }}>
             💡 <strong>Valor UF Hoy:</strong> ${Math.round(ufValor).toLocaleString('es-CL')}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <span style={{ fontSize: '14px', color: '#856404' }}>
-              ¿Te facturaron la mantención? Ajusta el monto exacto:
-            </span>
+            <span style={{ fontSize: '14px' }}>Ajusta el cobro de tu TC:</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ color: '#856404', fontWeight: 'bold' }}>$</span>
-              <input 
-                type="number" 
-                value={montoMantencion} 
-                onChange={(e) => setMontoMantencion(e.target.value)} 
-                style={{ padding: '8px', width: '90px', border: '1px solid #ccc', borderRadius: '4px' }}
-              />
-              <button 
-                type="button" 
-                onClick={registrarMantencionRapida} 
-                disabled={loading}
-                style={{ padding: '8px 12px', fontSize: '14px', backgroundColor: '#ffc107', color: '#212529', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                {loading ? '...' : '⚡ Registrar'}
+              <strong>$</strong>
+              <input type="number" className="form-input" value={montoMantencion} onChange={(e) => setMontoMantencion(e.target.value)} style={{ width: '90px', padding: '6px' }} />
+              <button type="button" className="btn-mantencion" onClick={registrarMantencionRapida} disabled={loading}>
+                {loading ? '...' : '⚡ Pagar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ... El resto del formulario se mantiene idéntico ... */}
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <label>
-            <input type="radio" value="Gasto" checked={tipo === 'Gasto'} onChange={(e) => setTipo(e.target.value)} /> Gasto
-          </label>
-          <label>
-            <input type="radio" value="Ingreso" checked={tipo === 'Ingreso'} onChange={(e) => setTipo(e.target.value)} /> Ingreso
-          </label>
-        </div>
+      <div className="pos-card">
+        <form onSubmit={handleSubmit}>
+          
+          {/* Toggle de Gasto/Ingreso */}
+          <div className="type-toggle">
+            <label className={tipo === 'Gasto' ? 'active-gasto' : ''}>
+              <input type="radio" value="Gasto" checked={tipo === 'Gasto'} onChange={(e) => {setTipo(e.target.value); setEsNuevaCategoria(false); setEsNuevaSubcategoria(false);}} />
+              Gasto
+            </label>
+            <label className={tipo === 'Ingreso' ? 'active-ingreso' : ''}>
+              <input type="radio" value="Ingreso" checked={tipo === 'Ingreso'} onChange={(e) => {setTipo(e.target.value); setEsNuevaCategoria(false); setEsNuevaSubcategoria(false);}} />
+              Ingreso
+            </label>
+          </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input type="number" placeholder="Monto del Producto ($)" value={monto} onChange={(e) => setMonto(e.target.value)} required style={{ flex: 1, padding: '8px' }} />
-          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required style={{ padding: '8px' }} />
-        </div>
+          {/* Monto y Fecha */}
+          <div className="input-group">
+            <input type="number" className="form-input" placeholder="Monto total ($)" value={monto} onChange={(e) => setMonto(e.target.value)} required />
+            <input type="date" className="form-input" value={fecha} onChange={(e) => setFecha(e.target.value)} required style={{ width: '150px' }} />
+          </div>
 
-        <select value={medioId} onChange={handleMedioPagoChange} required style={{ padding: '8px' }}>
-          <option value="" disabled>Selecciona el medio de pago...</option>
-          {mediosPago.map(m => (
-            <option key={m.id} value={m.id}>{m.nombre} ({m.tipo})</option>
-          ))}
-          <option value="nuevo" style={{ fontWeight: 'bold', color: '#4CAF50' }}>➕ Otro (Agregar nuevo)...</option>
-        </select>
+          {/* Medios de Pago */}
+          <select className="form-input" value={medioId} onChange={handleMedioPagoChange} required style={{ marginBottom: esNuevoMedio ? '10px' : '15px' }}>
+            <option value="" disabled>Selecciona el medio de pago...</option>
+            {mediosPago.map(m => <option key={m.id} value={m.id}>{m.nombre} ({m.tipo})</option>)}
+            <option value="nuevo" style={{ fontWeight: 'bold' }}>➕ Agregar cuenta nueva...</option>
+          </select>
 
-        {esNuevoMedio && (
-          <div style={{ display: 'flex', gap: '10px', padding: '15px', backgroundColor: '#e9ecef', borderRadius: '5px', border: '1px dashed #ccc' }}>
-            <input type="text" placeholder="Nombre (Ej: Banco Edwards)" value={nuevoMedioNombre} onChange={(e) => setNuevoMedioNombre(e.target.value)} required style={{ flex: 1, padding: '8px' }} />
-            <select value={nuevoMedioTipo} onChange={(e) => setNuevoMedioTipo(e.target.value)} required style={{ padding: '8px' }}>
-              <option value="Debito">Débito</option>
-              <option value="Credito">Crédito</option>
-              <option value="Transferencia">Transferencia</option>
-              <option value="Efectivo">Efectivo</option>
+          {esNuevoMedio && (
+            <div className="new-item-panel">
+              <input type="text" className="form-input" placeholder="Nombre (Ej: Caja chica)" value={nuevoMedioNombre} onChange={(e) => setNuevoMedioNombre(e.target.value)} required />
+              <select className="form-input" value={nuevoMedioTipo} onChange={(e) => setNuevoMedioTipo(e.target.value)} required style={{ width: '150px' }}>
+                <option value="Debito">Débito</option>
+                <option value="Credito">Crédito</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Efectivo">Efectivo</option>
+              </select>
+            </div>
+          )}
+
+          {/* Cuotas TC */}
+          {esCredito && tipo === 'Gasto' && (
+            <div className="credit-panel">
+              <label>💳 Opciones de Tarjeta de Crédito</label>
+              <div className="input-group">
+                <input type="number" className="form-input" min="1" max="48" value={cuotas} onChange={(e) => setCuotas(e.target.value)} style={{ width: '80px' }} title="N° de Cuotas" />
+                <input type="number" className="form-input" placeholder="Interés cobrado ($)" value={interes} onChange={(e) => setInteres(e.target.value)} />
+              </div>
+              {monto && (
+                <div style={{ fontSize: '13px', textAlign: 'right', color: '#495057' }}>
+                  Total: ${(parseFloat(monto) + (parseFloat(interes) || 0))} {cuotas > 1 && `(~$${((parseFloat(monto) + (parseFloat(interes) || 0)) / cuotas).toFixed(0)}/mes)`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Categorías y Subcategorías */}
+          <div className="input-group" style={{ marginBottom: (esNuevaCategoria || esNuevaSubcategoria) ? '10px' : '15px' }}>
+            <select className="form-input" value={categoriaId} onChange={handleCategoriaChange} required>
+              <option value="" disabled>Categoría...</option>
+              {categoriasFiltradas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              <option value="nueva" style={{ fontWeight: 'bold' }}>➕ Nueva categoría...</option>
+            </select>
+            
+            <select className="form-input" value={subcategoriaId} onChange={handleSubcategoriaChange} required disabled={esNuevaCategoria}>
+              <option value="" disabled>Subcategoría...</option>
+              {subcatsFiltradas.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              {!esNuevaCategoria && <option value="nueva" style={{ fontWeight: 'bold' }}>➕ Nueva subcategoría...</option>}
+              {esNuevaCategoria && <option value="nueva">Subcategoría requerida</option>}
             </select>
           </div>
-        )}
 
-        {esCredito && tipo === 'Gasto' && (
-          <div style={{ padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '5px', borderLeft: '4px solid #2196f3', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontWeight: 'bold' }}>Detalles de Tarjeta de Crédito</label>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <input type="number" min="1" max="48" value={cuotas} onChange={(e) => setCuotas(e.target.value)} style={{ padding: '8px', width: '80px' }} />
-              <span>cuotas</span>
+          {/* Paneles de creación Categoría/Subcategoría */}
+          {(esNuevaCategoria || esNuevaSubcategoria) && (
+            <div className="new-item-panel" style={{ flexDirection: 'column' }}>
+              {esNuevaCategoria && (
+                <input type="text" className="form-input" placeholder="Nombre de la nueva Categoría" value={nuevaCategoriaNombre} onChange={(e) => setNuevaCategoriaNombre(e.target.value)} required />
+              )}
+              {esNuevaSubcategoria && (
+                <input type="text" className="form-input" placeholder="Nombre de la nueva Subcategoría" value={nuevaSubcategoriaNombre} onChange={(e) => setNuevaSubcategoriaNombre(e.target.value)} required />
+              )}
             </div>
+          )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <input type="number" placeholder="Interés total cobrado ($)" value={interes} onChange={(e) => setInteres(e.target.value)} style={{ padding: '8px', flex: 1 }} />
-              <span style={{ fontSize: '12px', color: '#666' }}>(Opcional)</span>
-            </div>
+          {/* Descripción */}
+          <input type="text" className="form-input" placeholder="Descripción de la venta o compra..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} style={{ marginBottom: '15px' }} />
 
-            {monto && (
-              <div style={{ color: '#555', fontSize: '14px', marginTop: '5px', textAlign: 'right' }}>
-                Total a financiar: <strong>${(parseFloat(monto) + (parseFloat(interes) || 0))}</strong> 
-                {cuotas > 1 && ` (Aprox. $${((parseFloat(monto) + (parseFloat(interes) || 0)) / cuotas).toFixed(0)}/mes)`}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} required style={{ flex: 1, padding: '8px' }}>
-            {categoriasFiltradas.map(c => (
-              <option key={c.id} value={c.id}>{c.nombre}</option>
-            ))}
-          </select>
-          
-          <select value={subcategoriaId} onChange={(e) => setSubcategoriaId(e.target.value)} required style={{ flex: 1, padding: '8px' }}>
-            {subcatsFiltradas.length > 0 ? (
-              subcatsFiltradas.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)
-            ) : (
-              <option value="" disabled>Sin subcategorías</option>
-            )}
-          </select>
-        </div>
-
-        <input type="text" placeholder="Ej: Pago de servidor, salidas..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} style={{ padding: '8px' }} />
-
-        <button type="submit" disabled={loading || !subcategoriaId} style={{ padding: '12px', fontSize: '16px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-          {loading ? 'Procesando...' : '💾 Registrar Transacción'}
-        </button>
-      </form>
+          <button type="submit" className="btn-submit" disabled={loading || !subcategoriaId}>
+            {loading ? 'Procesando...' : '💾 Registrar Movimiento'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
