@@ -1,22 +1,70 @@
 /* src/Pos.css */
+
+/* 1. Variables de colores (Tema Claro por defecto) */
+:root {
+  --bg-page: #f4f7f6;
+  --bg-card: #ffffff;
+  --text-main: #333333;
+  --text-muted: #868e96;
+  --bg-input: #f8f9fa;
+  --border-input: #ced4da;
+  --bg-toggle: #f1f3f5;
+  --bg-panel: #f8f9fa;
+  --border-panel: #adb5bd;
+  --bg-credit: #e7f5ff;
+  --border-credit: #339af0;
+  --text-credit: #1864ab;
+  --btn-submit: #339af0;
+  --btn-submit-hover: #228be6;
+  --color-gasto: #ff6b6b;
+  --color-ingreso: #20c997;
+}
+
+/* 2. El detector mágico: Cambia los colores si el iPhone está en Modo Oscuro */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-page: #121212;
+    --bg-card: #1e1e1e;
+    --text-main: #f1f3f5; /* Texto casi blanco para que se lea perfecto */
+    --text-muted: #adb5bd;
+    --bg-input: #2d2d2d;
+    --border-input: #495057;
+    --bg-toggle: #2b2b2b;
+    --bg-panel: #252525;
+    --border-panel: #555555;
+    --bg-credit: #1a2a3a;
+    --border-credit: #339af0;
+    --text-credit: #74c0fc;
+  }
+}
+
+/* 3. Estilos Base */
+body {
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  margin: 0;
+  padding: 20px 10px; /* Respiro lateral para móviles */
+  transition: background-color 0.3s ease, color 0.3s ease; /* Transición suave si cambias de tema en vivo */
+}
+
 .pos-wrapper {
   max-width: 500px;
   margin: 0 auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #333;
 }
 
 .pos-card {
-  background: #ffffff;
+  background: var(--bg-card);
   padding: 24px;
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.3s ease;
 }
 
 /* Toggle de Gasto / Ingreso */
 .type-toggle {
   display: flex;
-  background: #f1f3f5;
+  background: var(--bg-toggle);
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 20px;
@@ -28,7 +76,7 @@
   padding: 12px;
   cursor: pointer;
   font-weight: 600;
-  color: #868e96;
+  color: var(--text-muted);
   transition: all 0.3s ease;
 }
 
@@ -36,18 +84,17 @@
   display: none;
 }
 
-/* Colores activos del toggle */
 .type-toggle label.active-gasto {
-  background: #ff6b6b;
+  background: var(--color-gasto);
   color: white;
 }
 
 .type-toggle label.active-ingreso {
-  background: #20c997;
+  background: var(--color-ingreso);
   color: white;
 }
 
-/* Estilo general de campos */
+/* Campos de entrada */
 .input-group {
   display: flex;
   gap: 12px;
@@ -57,33 +104,38 @@
 .form-input {
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--border-input);
   border-radius: 8px;
   font-size: 15px;
-  background-color: #f8f9fa;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: var(--bg-input);
+  color: var(--text-main); /* LA CLAVE DE LA LECTURA */
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s;
   box-sizing: border-box;
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #4dabf7;
-  background-color: #fff;
-  box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.2);
+  border-color: var(--btn-submit);
+  background-color: var(--bg-card);
+  box-shadow: 0 0 0 3px rgba(51, 154, 240, 0.2);
 }
 
 select.form-input {
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23495057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23868e96' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 1rem center;
   background-size: 1em;
 }
 
-/* Paneles de creación (Nuevos campos) */
+/* Paneles Dinámicos */
 .new-item-panel {
-  background-color: #f8f9fa;
-  border: 1px dashed #adb5bd;
+  background-color: var(--bg-panel);
+  border: 1px dashed var(--border-panel);
   padding: 15px;
   border-radius: 8px;
   margin-bottom: 15px;
@@ -92,10 +144,9 @@ select.form-input {
   animation: slideDown 0.3s ease-out;
 }
 
-/* Panel de Tarjeta de Crédito */
 .credit-panel {
-  background-color: #e7f5ff;
-  border-left: 4px solid #339af0;
+  background-color: var(--bg-credit);
+  border-left: 4px solid var(--border-credit);
   padding: 15px;
   border-radius: 4px 8px 8px 4px;
   margin-bottom: 15px;
@@ -103,20 +154,20 @@ select.form-input {
 
 .credit-panel label {
   font-weight: 600;
-  color: #1864ab;
+  color: var(--text-credit);
   display: block;
   margin-bottom: 10px;
   font-size: 14px;
 }
 
-/* Botón de Guardar */
+/* Botón Guardar */
 .btn-submit {
   width: 100%;
   padding: 14px;
   font-size: 16px;
   font-weight: 700;
   color: white;
-  background: #339af0;
+  background: var(--btn-submit);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -125,7 +176,7 @@ select.form-input {
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: #228be6;
+  background: var(--btn-submit-hover);
 }
 
 .btn-submit:active:not(:disabled) {
@@ -133,11 +184,12 @@ select.form-input {
 }
 
 .btn-submit:disabled {
-  background: #adb5bd;
+  background: var(--border-panel);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
-/* Banner de Mantención */
+/* Banner UF */
 .banner-uf {
   background-color: #fff3cd;
   border: 1px solid #ffeeba;
@@ -145,6 +197,15 @@ select.form-input {
   border-radius: 8px;
   margin-bottom: 20px;
   color: #856404;
+}
+
+/* Ajuste sutil del banner para modo oscuro para que no rompa los ojos */
+@media (prefers-color-scheme: dark) {
+  .banner-uf {
+    background-color: #4d4013;
+    border-color: #665415;
+    color: #fceea4;
+  }
 }
 
 .btn-mantencion {
@@ -155,10 +216,6 @@ select.form-input {
   padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
-}
-
-.btn-mantencion:hover {
-  background: #e0a800;
 }
 
 @keyframes slideDown {
